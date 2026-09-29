@@ -9,8 +9,13 @@ import type { MetadataContext } from './types/resolvers'
 import type { LoaderTree } from '../../server/lib/app-dir-module'
 import type { ParsedUrlQuery } from 'querystring'
 import { workAsyncStorage } from '../../server/app-render/work-async-storage.external'
+import { workUnitAsyncStorage } from '../../server/app-render/work-unit-async-storage.external'
 import { InvariantError } from '../../shared/lib/invariant-error'
 import type { Params } from '../../server/request/params'
+import {
+  getFallbackRouteParamsFromWorkUnitStore,
+  resolveMetadataParamValue,
+} from './resolve-fallback-param'
 
 // eslint-disable-next-line import/no-extraneous-dependencies
 import 'server-only'
@@ -200,7 +205,17 @@ async function resolveMetadataItemsImpl(
   let currentParams = parentParams
   const segmentParam = getSegmentParam(segment)
   if (segmentParam) {
-    const value = interpolatedParams[segmentParam.paramName]
+    // A fallback param for this prerender must resolve to its hanging
+    // placeholder here too, not be silently left out of currentParams. Left
+    // out, it reads as `undefined` in generateMetadata / generateViewport
+    // instead of suspending like the page component does for the same
+    // param, so the fallback shell bakes in a value computed from
+    // `undefined`. See resolveMetadataParamValue.
+    const value = resolveMetadataParamValue(
+      interpolatedParams,
+      segmentParam.paramName,
+      getFallbackRouteParamsFromWorkUnitStore(workUnitAsyncStorage.getStore())
+    )
     if (value !== null && value !== undefined) {
       currentParams = {
         ...parentParams,
@@ -307,7 +322,13 @@ async function resolveViewportItemsImpl(
   let currentParams = parentParams
   const segmentParam = getSegmentParam(segment)
   if (segmentParam) {
-    const value = interpolatedParams[segmentParam.paramName]
+    // See the comment in resolveMetadataItemsImpl above — same fix, same
+    // reason, for generateViewport.
+    const value = resolveMetadataParamValue(
+      interpolatedParams,
+      segmentParam.paramName,
+      getFallbackRouteParamsFromWorkUnitStore(workUnitAsyncStorage.getStore())
+    )
     if (value !== null && value !== undefined) {
       currentParams = {
         ...parentParams,

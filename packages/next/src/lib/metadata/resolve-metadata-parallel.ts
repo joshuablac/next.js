@@ -27,6 +27,11 @@ import { DEFAULT_SEGMENT_KEY, PAGE_SEGMENT_KEY } from '../../shared/lib/segment'
 import { PARALLEL_ROUTE_DEFAULT_PATH } from '../../client/components/builtin/default'
 import { PARALLEL_ROUTE_DEFAULT_NULL_PATH } from '../../client/components/builtin/default-null'
 import { workAsyncStorage } from '../../server/app-render/work-async-storage.external'
+import { workUnitAsyncStorage } from '../../server/app-render/work-unit-async-storage.external'
+import {
+  getFallbackRouteParamsFromWorkUnitStore,
+  resolveMetadataParamValue,
+} from './resolve-fallback-param'
 import { InvariantError } from '../../shared/lib/invariant-error'
 import * as Log from '../../build/output/log'
 import { getUseCacheFunctionInfo } from '../client-and-server-references'
@@ -700,7 +705,15 @@ async function walkMetadataTree(
   let currentParams = state.parentParams
   const segmentParam = getSegmentParam(segment)
   if (segmentParam) {
-    const value = context.interpolatedParams[segmentParam.paramName]
+    // A fallback param for this prerender must resolve to its hanging
+    // placeholder here too, not be silently left out of currentParams — see
+    // resolveMetadataParamValue and resolve-metadata.ts's
+    // resolveMetadataItemsImpl, which this mirrors.
+    const value = resolveMetadataParamValue(
+      context.interpolatedParams,
+      segmentParam.paramName,
+      getFallbackRouteParamsFromWorkUnitStore(workUnitAsyncStorage.getStore())
+    )
     if (value !== null && value !== undefined) {
       currentParams = {
         ...state.parentParams,
