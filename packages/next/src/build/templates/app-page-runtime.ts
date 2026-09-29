@@ -1118,6 +1118,7 @@ export function createAppPageEntrypoint({
         isRevalidating,
         span,
         forceStaticRender = false,
+        isBackgroundRevalidate = false,
       }) => {
         const isProduction = routeModule.isDev === false
         const didRespond = hasResolved || res.writableEnded
@@ -1199,7 +1200,10 @@ export function createAppPageEntrypoint({
             fallbackMode = FallbackMode.BLOCKING_STATIC_RENDER
           }
 
-          if (previousIncrementalCacheEntry?.isStale === -1) {
+          if (
+            !isBackgroundRevalidate &&
+            previousIncrementalCacheEntry?.isStale === -1
+          ) {
             isOnDemandRevalidate = true
           }
 
@@ -1465,11 +1469,21 @@ export function createAppPageEntrypoint({
                           // revalidating in the background and typically this dynamic
                           // RSC request is not treated as static.
                           forceStaticRender: true,
+                          // We're passing the stale entry below so a failure
+                          // re-arms it (see the comment there); this tells
+                          // responseGenerator not to treat that as an
+                          // on-demand revalidation of it.
+                          isBackgroundRevalidate: true,
                         }),
-                      // CRITICAL: we need to pass null here because passing the
-                      // previous cache entry here (which is stale) will switch on
-                      // isOnDemandRevalidate and break the prerendering.
-                      null,
+                      // Passing the stale entry (instead of null) lets a
+                      // failure below re-arm it for a few seconds
+                      // (ResponseCache.retainPreviousCacheEntry), matching
+                      // the document-request path: without it, every
+                      // subsequent navigation while the upstream stays down
+                      // re-runs this same failing prerender. This is safe
+                      // to pass now that responseGenerator is told above
+                      // not to infer an on-demand revalidation from it.
+                      incrementalCacheEntry,
                       hasResolved,
                       ctx.waitUntil
                     )
@@ -1477,10 +1491,7 @@ export function createAppPageEntrypoint({
                       throw result.error
                     }
                   } catch (err) {
-                    console.error(
-                      'Error revalidating the page in the background',
-                      err
-                    )
+                    reportRevalidationError(err)
                   }
                 })
               }

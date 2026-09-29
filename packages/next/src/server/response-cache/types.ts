@@ -203,6 +203,20 @@ export type ResponseGenerator = (state: {
    * dynamic RSC request.
    */
   forceStaticRender?: boolean
+
+  /**
+   * When true, `previousCacheEntry` is only the stale entry being replaced —
+   * passed through so a failure can re-arm it (see `revalidate`'s use of
+   * `retainPreviousCacheEntry`), not because this call is itself an
+   * on-demand revalidation of it. Without this, a caller that wants a
+   * failure to back off has no way to pass the previous entry through:
+   * doing so also makes the response generator treat the call as an
+   * on-demand revalidation of that entry, which forces a blocking render.
+   *
+   * CRITICAL: This should only currently be used when revalidating in the
+   * background due to a dynamic RSC or Server Action request.
+   */
+  isBackgroundRevalidate?: boolean
 }) => Promise<ResponseCacheResult>
 
 export const enum IncrementalCacheKind {
